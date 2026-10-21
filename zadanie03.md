@@ -41,3 +41,55 @@ Z obrazu bazowego pochodzą warstwy od dołu, które stworzone zostały 3-4 tygo
 
 # 2. Run działa raz
 
+Zawartość pliku build.txt:
+    - Dla kontener1: Wed Oct 21 18:57:40 UTC 2026
+    - Dla kontener2: Wed Oct 21 18:57:40 UTC 2026
+
+Wynik polecenia docker ps:
+CONTAINER ID   IMAGE                   COMMAND                  CREATED              STATUS                   PORTS                                         NAMES
+a5af7c91a7a7   moj_frontend            "/docker-entrypoint.…"   23 seconds ago       Up 22 seconds            0.0.0.0:8082->80/tcp, [::]:8082->80/tcp       kontener2
+8fa39e376299   moj_frontend            "/docker-entrypoint.…"   About a minute ago   Up About a minute        0.0.0.0:8081->80/tcp, [::]:8081->80/tcp       kontener1
+ca757559731a   574a4700333b            "uvicorn system_test…"   31 hours ago         Up 8 minutes (healthy)                                                 biblioteka_backend
+d40a85be7db5   multigem-multigem-app   "uvicorn main:app --…"   4 days ago           Up 8 minutes             0.0.0.0:8080->8000/tcp, [::]:8080->8000/tcp   multigem-multigem-app-1
+
+Instrukcja RUN wykonuje się tylko raz na etapie docker build, tworząc nową, niezmienną warstwę w obrazie. Plik build.txt został wygenerowany w momencie kompilacji obrazu, a kontenery tylko odczytują gotowy stan systemu plików tego obrazu, zamiast generować plik na nowo przy docker run.
+
+
+
+# 3. Nadpisanie CMD
+
+root   /usr/share/nginx/html;
+
+Kopiujemy pliki do tego folderu, bo Nginx ma wpisane w parametrze root, że właśnie stamtąd pobiera i wyświetla stronę w przeglądarce.
+
+
+
+# 4. Diagnoza błędnego COPY
+
+docker exec bledny_kontener ls /usr/share/nginx
+html
+index.html
+script.js
+style.css
+
+docker exec bledny_kontener ls /usr/share/nginx/html
+50x.html
+build.txt
+index.html
+
+Htmlhint sprawdził plik index.html z /usr/share/nginx. Build przeszedł bo z punktu widzenia Dockera polecenie COPY do /usr/share/nginx/ jest technicznie poprawne. Pliki skopiowane zostały o jeden folder wyżej (folder /html zawiera nadal fabryczny plik Nginx).
+
+
+
+# 5. Usunięcie tagu a usunięcie obrazu
+
+docker rmi breach-checker-frontend:latest
+Untagged: breach-checker-frontend:latest
+
+docker rmi breach-checker-frontend:v2
+Untagged: breach-checker-frontend:v2
+Deleted: sha256:283f92b9312fcee5f18c22e5df29ac1e2d5752096bf81088d46e99429a61bc35
+
+Oto krótsza, zwięzła wersja do wpisania w pliku:
+
+Polecenie docker rmi faktycznie usuwa obraz z dysku (Deleted) dopiero wtedy, gdy usuwamy ostatni istniejący tag wskazujący na ten obraz. Jeśli na to samo ID wskazuje jeszcze inna nazwa, Docker tylko ją odpina (Untagged), a pliki zostają na dysku.

@@ -1,5 +1,6 @@
 # --- Etap 1: kontrola jakości HTML (narzędzia potrzebne tylko podczas budowania) ---
 FROM node:24-alpine AS lint
+LABEL org.opencontainers.image.source="https://github.com/t3clin3/breach-checker"
 RUN npm install -g htmlhint@1.9.2
 WORKDIR /site
 COPY index.html style.css script.js ./

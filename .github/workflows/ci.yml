@@ -39,9 +39,9 @@ jobs:
       - name: Logowanie do GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Budowanie obrazu produkcyjnego
-        run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
+        run: docker build -t "$IMAGE:$GITHUB_SHA" backend
       - name: Publikacja
-        run: docker push --all-tags "$IMAGE"
+        run: docker push "$IMAGE:$GITHUB_SHA"
   build-frontend:
     runs-on: ubuntu-24.04
     permissions:
@@ -56,9 +56,9 @@ jobs:
       - name: Logowanie do GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Budowanie obrazu produkcyjnego
-        run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" frontend
+        run: docker build -t "$IMAGE:$GITHUB_SHA" frontend
       - name: Publikacja
-        run: docker push --all-tags "$IMAGE"
+        run: docker push "$IMAGE:GITHUB_SHA"
   verify:
     needs: [build-and-push, build-frontend]
     runs-on: ubuntu-24.04
@@ -90,3 +90,24 @@ jobs:
       - name: Logi przy błędzie
         if: failure()
         run: docker compose logs
+  promote:
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Nazwy obrazów (tylko małe litery)
+        run: |
+          echo "BACKEND_REPO=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-backend" >> "$GITHUB_ENV"
+          echo "FRONTEND_REPO=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-frontend" >> "$GITHUB_ENV"
+      - name: Logowanie do GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Nadanie tagu latest dla zweryfikowanych obrazów
+        run: |
+          docker pull "${BACKEND_REPO}:${GITHUB_SHA}"
+          docker tag "${BACKEND_REPO}:${GITHUB_SHA}" "${BACKEND_REPO}:latest"
+          docker push "${BACKEND_REPO}:latest"
+          docker pull "${FRONTEND_REPO}:${GITHUB_SHA}"
+          docker tag "${FRONTEND_REPO}:${GITHUB_SHA}" "${FRONTEND_REPO}:latest"
+          docker push "${FRONTEND_REPO}:latest"
